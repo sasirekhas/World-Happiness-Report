@@ -1,0 +1,316 @@
+---
+title: "Sasirekha_Aug_SVAP_Asmt_R2.Rmd"
+author: "Sasirekha"
+date: "October 3, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rvest)
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(formattable)
+library(ggthemes)
+library(viridis)
+library(corrplot)
+library(ggcorrplot)
+
+
+```
+
+#Frame
+## World Happiness Report Analysis
+## Happiness and Open data
+
+-  1st part - Is happiness correlated with open data?.
+-  2nd part - Are open countries happy countries?.
+-  3rd part - Happiness Trends
+-  4th part - What other measures are correlated with "Openness"?
+-  5th part - Which factor does the happiness score depends upon ?
+
+
+#   Acquire
+##  Read in data files from open-data and world-happiness datasets
+
+## Getting data from 2015 Global Open data index by country - csv file
+
+
+```{r}
+setwd("D:/Big Data/Sasi Big Data")
+openData=read.csv("2015-Global-Open-Data-Index.csv",header=TRUE)
+openData
+names(openData)
+attach(openData)
+str(openData)
+View(openData)
+
+```
+
+## Getting data from Happiness Rank Scores - Country Wise
+## Year - 2015
+
+```{r}
+setwd("D:/Big Data/Sasi Big Data")
+happiness2015=read.csv("Happiness-Rank-Scores-Country-2015.csv",header=TRUE)
+happiness2015
+names(happiness2015)
+attach(happiness2015)
+str(happiness2015)
+View(happiness2015)
+
+```
+
+## Getting data from Happiness Rank Scores - Country Wise
+## Year - 2016
+
+```{r}
+setwd("D:/Big Data/Sasi Big Data")
+happiness2016=read.csv("Happiness-Rank-Scores-Country-2016.csv",header=TRUE)
+happiness2016
+names(happiness2016)
+attach(happiness2016)
+str(happiness2016)
+View(happiness2016)
+
+```
+
+## Getting data from Happiness Rank Scores - Country Wise
+## Year - 2017
+
+```{r}
+setwd("D:/Big Data/Sasi Big Data")
+happiness2017=read.csv("Happiness-Rank-Scores-Country-2017.csv",header=TRUE)
+happiness2017
+names(happiness2017)
+attach(happiness2017)
+str(happiness2017)
+View(happiness2017)
+
+```
+
+
+
+
+## Refine
+# Rename column names
+
+```{r}
+dim(openData)
+str(openData)
+column_name = c('code','Country','RankOf2015','ScoreOf2015','RankOf2014','ScoreOf2014',
+                'RankOf2013','ScoreOf2013')
+colnames(openData) = column_name
+str(openData)
+
+```
+
+# Join the two dataset files on "Country"
+# Keep only columns I plan to use
+```{r}
+open_data_happiness <- openData %>%
+  left_join(happiness2015, by = "Country") %>%
+  #mutate(Country = factor(Country)) %>%
+  
+  select(Country, Region, ScoreOf2015, Happiness.Score, Economy..GDP.per.Capita., 
+         Family, Health..Life.Expectancy., Freedom, Trust..Government.Corruption., 
+         Generosity, Dystopia.Residual)
+dim(open_data_happiness)
+str(open_data_happiness)
+View(open_data_happiness)
+```
+
+# Give the columns nicer names now that our data is in one dataframe
+```{r}
+colnames(open_data_happiness) <- c("Country", "Region", "Openness", "Happiness", "GDP", "Family", "Health", "Freedom", "Trust", "Generosity", "DystopiaResidual")
+str(open_data_happiness)
+View(open_data_happiness)
+
+## Replace the Region with Country for the rows which don't have Region
+
+##open_data_happiness$Region[is.na(open_data_happiness$Region)] = ##open_data_happiness$Country[is.na(open_data_happiness$Region)]
+##View(open_data_happiness)
+```
+
+## Usagage of the Package formattable -  To look at the characteristics of the top 10 countries with the highest scores for their open data sharing policies:
+##  I st Part - Is happiness correlated with open data?
+
+```{r}
+
+open_data_happiness %>%
+  # Which countries are the most open?
+  arrange(desc(Openness)) %>%
+  # Round our numeric variables to two decimal places
+  mutate_each(funs(round(., 2)), -c(Country, Region, Openness)) %>%
+  head(10) %>%
+  formattable(list(
+    Openness = color_bar("yellow"),
+    Happiness = color_bar("lightgreen"),
+    GDP = color_bar("deepskyblue"),
+    Family = color_bar("deepskyblue"),
+    Health = color_bar("deepskyblue"),
+    Freedom = color_bar("deepskyblue"),
+    Trust = color_bar("deepskyblue"),
+    Generosity = color_bar("deepskyblue"),
+    DystopiaResidual = color_bar("deepskyblue")
+  ), align = "l")
+
+```
+
+## 2 nd Part - Are open countries happy countries?.
+##  countries that index highly for data openness are also home to happy people.
+```{r}
+ggplot(open_data_happiness, 
+  aes(x = Openness, 
+      y = Happiness)) +
+  geom_point(aes(colour = Region),
+             size = 2) +
+  geom_smooth(method="lm") +
+  labs(x = "Openness Score",
+       y = "Happiness Score",
+       title = "Are open data friendly countries happy countries?",
+       subtitle = "Data openness and happiness by country in 2015") +
+  scale_color_viridis(discrete = T) +
+  theme_minimal() +
+  theme(text = element_text(size=16))
+```
+
+#  3 rd Part - Happiness Trends
+## Has the happiness score remained the same over the years?
+#  Renaming column names so that it will be recognisable in joint
+
+```{r}
+
+colnames(happiness2015)[3:12]=paste("fif",colnames(happiness2015)[3:12],sep="_")
+colnames(happiness2016)[3:12]=paste("six",colnames(happiness2016)[3:12],sep="_")
+colnames(happiness2017)[2:12]=paste("seven",colnames(happiness2017)[2:12],sep="_")
+View(happiness2015)
+View(happiness2016)
+View(happiness2017)
+
+```
+
+## Doing Left Joint
+```{r}
+open_happy=happiness2015 %>% left_join(happiness2016,by="Country") %>% left_join(happiness2017,by="Country")
+open_happy$Country=as.factor(open_happy$Country)
+str(open_happy)
+View(open_happy)
+```
+
+#Visualising the trend
+#names(open_happy)
+```{r}
+open_happy  %>% head(10) %>% select(Country,Region.x,fif_Happiness.Rank,fif_Happiness.Score,six_Happiness.Rank,six_Happiness.Score,seven_Happiness.Rank,seven_Happiness.Score) %>% formattable(list(fif_Happiness.Rank=color_bar("yellow"),fif_Happiness.Score=color_bar("lightgreen"),six_Happiness.Rank=color_bar("yellow"),six_Happiness.Score=color_bar("lightgreen"),seven_Happiness.Rank=color_bar("yellow"),seven_Happiness.Score=color_bar("lightgreen")),align="l")  
+View(open_happy)
+
+```
+
+```{r}
+
+temp=open_happy %>% select(Country,Region.x,fif_Happiness.Rank,six_Happiness.Rank,seven_Happiness.Rank,fif_Happiness.Score,six_Happiness.Score,seven_Happiness.Score) 
+#Create 2 temp dataframe for ggplot vis
+temp.rank=gather(temp,"rankyear","rank",3:5)
+temp.score=gather(temp,"scoreyear","score",3:5)
+temp.order=ddply(temp.rank,"rankyear",function(x) head(x[order(x$rank,decreasing=FALSE),],10))
+temp.order %>% ggplot(aes(x=Country,y=rank,group=rankyear,color=rankyear))+geom_line(stat="identity",na.rm=FALSE)+geom_point()+theme(legend.position="right",axis.text.x=element_text(angle=90,vjust=0.5),text=element_text(size=16))+labs(x="Country",y="Rank",title="Rank trend over the year",subtitle="How did the hapiness rank change in 16,17 compared to 15")+coord_cartesian(xlim=c(1,10))+scale_y_continuous(breaks=seq(1,10,1))
+
+```
+
+
+
+##  4 th Part - What other measures are correlated with "Openness"?
+```{r}
+# Subset the data to include only the variables we want to look at
+open_data_corr <- open_data_happiness %>%
+  select(Openness, Happiness, GDP, Family, Health, 
+         Freedom, Trust, Generosity, DystopiaResidual) %>%
+  mutate(Openness = as.numeric(Openness))
+
+od_corr <- cor(open_data_corr, use = "complete", method = "pearson")
+
+corrplot(od_corr)
+
+```
+
+## 5th Part - Which factor does the happiness score depends upon ?
+## 2015 Scores
+```{r}
+temp=open_happy[3:12]
+model=lm(temp$fif_Happiness.Score~ temp$fif_Economy..GDP.per.Capita.+temp$fif_Family+temp$fif_Health..Life.Expectancy.+temp$fif_Freedom+temp$fif_Freedom+temp$fif_Trust..Government.Corruption.+temp$fif_Generosity)
+summary(model)
+
+## 2016 Scores
+
+temp=open_happy[14:25]
+model=lm(temp$six_Happiness.Score~ temp$six_Economy..GDP.per.Capita.+temp$six_Family+temp$six_Health..Life.Expectancy.+temp$six_Freedom+temp$six_Trust..Government.Corruption.+temp$six_Generosity)
+summary(model)
+
+## 2017 Scores
+
+temp=open_happy[26:35]
+model=lm(temp$seven_Happiness.Score~temp$seven_Economy..GDP.per.Capita.+temp$seven_Family+temp$seven_Family+temp$seven_Health..Life.Expectancy.+temp$seven_Freedom+temp$seven_Generosity+temp$seven_Trust..Government.Corruption.)
+summary(model)
+```
+
+## Model
+## GDP Per Capita Prediction for the Year 2018 - For Top Country in 2017
+
+```{r}
+top_Country = as.character(happiness2017[1,1])
+top_Country
+
+#Predict the GDP Per Capita for the next 30 days for that Country.
+# Have predicted for Jan 2018 to show the next 30 days for that Country
+## Model
+
+happiness_top_Country_2015 = cbind("2015-01-01",happiness2015%>%
+                filter(Country == top_Country)%>%
+                select(fif_Economy..GDP.per.Capita.))
+colnames(happiness_top_Country_2015) = c('year','gdp')
+happiness_top_Country_2016 = cbind("2016-01-01",happiness2016%>%
+                filter(Country == top_Country)%>%
+                select(six_Economy..GDP.per.Capita.))
+colnames(happiness_top_Country_2016) = c('year','gdp')
+happiness_top_Country_2017 = cbind("2017-01-01",happiness2017%>%
+                filter(Country == top_Country)%>%
+                select(seven_Economy..GDP.per.Capita.))
+colnames(happiness_top_Country_2017) = c('year','gdp')
+happiness_top_Country = rbind(happiness_top_Country_2015,happiness_top_Country_2016,happiness_top_Country_2017)
+happiness_top_Country$year = as.Date(happiness_top_Country$year )
+
+View(happiness_top_Country)
+
+library (prophet)
+
+colnames(happiness_top_Country) = c('ds','y')
+m <- prophet(happiness_top_Country)
+future = make_future_dataframe(m, period =5, freq="year")
+forecast = predict(m, future)
+head(forecast)
+plot(m, forecast)
+
+
+```
+
+
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
